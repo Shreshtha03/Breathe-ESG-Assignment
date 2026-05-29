@@ -21,14 +21,9 @@ fi
 
 pip install -r requirements.txt
 
-# Run migrations
-echo "Running migrations..."
+# Run migrations (only makemigrations during build to compile migration files)
+echo "Generating migration files..."
 python manage.py makemigrations api --noinput || true
-python manage.py migrate --noinput
-
-# Seed default analyst user
-echo "Creating default analyst user..."
-python manage.py create_default_user
 
 # Collect static files
 echo "Collecting static files..."
