@@ -191,25 +191,3 @@ class StatsView(APIView):
                 "scope3": scope3
             }
         })
-
-from rest_framework.permissions import AllowAny
-from django.contrib.auth.models import User
-
-class DebugUserView(APIView):
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        users = list(User.objects.values('id', 'username', 'email', 'is_superuser'))
-        user_obj, created = User.objects.get_or_create(username='analyst', defaults={
-            'email': 'analyst@breatheesg.com',
-            'is_superuser': True,
-            'is_staff': True
-        })
-        user_obj.set_password('analyst123')
-        user_obj.save()
-        
-        return Response({
-            "users": users,
-            "created_now": created,
-            "password_reset_success": True
-        })
