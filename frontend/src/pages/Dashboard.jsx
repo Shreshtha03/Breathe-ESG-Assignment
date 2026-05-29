@@ -27,6 +27,7 @@ export default function Dashboard({ user: username, onLogout }) {
     const [statusFilter, setStatusFilter] = useState('all')
     const [sourceFilter, setSourceFilter] = useState('all')
     const [toast, setToast] = useState(null)
+    const [selectedRecord, setSelectedRecord] = useState(null)
 
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type })
@@ -191,7 +192,7 @@ export default function Dashboard({ user: username, onLogout }) {
                                         </thead>
                                         <tbody>
                                             {records.map(r => (
-                                                <tr key={r.id}>
+                                                <tr key={r.id} onClick={() => setSelectedRecord(r)} style={{ cursor: 'pointer' }} title="Click to view details">
                                                     <td style={{ whiteSpace: 'nowrap' }}>{r.activity_date}</td>
                                                     <td><span className="badge pending">{r.source_type}</span></td>
                                                     <td style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{r.scope}</td>
@@ -202,10 +203,10 @@ export default function Dashboard({ user: username, onLogout }) {
                                                     <td style={{ color: 'var(--red)', fontSize: '0.75rem', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.flag_reason || '-'}</td>
                                                     <td>
                                                         {!r.is_locked && r.status !== 'approved' && (
-                                                            <button className="action-btn approve" onClick={() => handleAction(r.id, 'approve')}>✓ Approve</button>
+                                                            <button className="action-btn approve" onClick={(e) => { e.stopPropagation(); handleAction(r.id, 'approve'); }}>✓ Approve</button>
                                                         )}
                                                         {!r.is_locked && r.status !== 'rejected' && (
-                                                            <button className="action-btn reject" onClick={() => handleAction(r.id, 'reject')}>✗ Reject</button>
+                                                            <button className="action-btn reject" onClick={(e) => { e.stopPropagation(); handleAction(r.id, 'reject'); }}>✗ Reject</button>
                                                         )}
                                                         {r.is_locked && <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>🔒 Locked</span>}
                                                     </td>
@@ -223,6 +224,89 @@ export default function Dashboard({ user: username, onLogout }) {
                 {tab === 'batches' && <BatchesTab />}
             </main>
 
+            {selectedRecord && (
+                <div className="modal-overlay" onClick={() => setSelectedRecord(null)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>Record Details</h3>
+                            <button className="modal-close" onClick={() => setSelectedRecord(null)}>×</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="detail-grid">
+                                <div className="detail-item">
+                                    <div className="detail-label">Source Type</div>
+                                    <div className="detail-value"><span className="badge pending">{selectedRecord.source_type}</span></div>
+                                </div>
+                                <div className="detail-item">
+                                    <div className="detail-label">Scope</div>
+                                    <div className="detail-value">{selectedRecord.scope}</div>
+                                </div>
+                                <div className="detail-item">
+                                    <div className="detail-label">Activity Date</div>
+                                    <div className="detail-value">{selectedRecord.activity_date}</div>
+                                </div>
+                                <div className="detail-item">
+                                    <div className="detail-label">Status</div>
+                                    <div className="detail-value"><span className={`badge ${selectedRecord.status}`}>{selectedRecord.status}</span></div>
+                                </div>
+                                <div className="detail-item full-width">
+                                    <div className="detail-label">Description</div>
+                                    <div className="detail-value">{selectedRecord.description || '-'}</div>
+                                </div>
+                                <div className="detail-item">
+                                    <div className="detail-label">Raw Quantity</div>
+                                    <div className="detail-value">{selectedRecord.raw_quantity} {selectedRecord.raw_unit}</div>
+                                </div>
+                                <div className="detail-item">
+                                    <div className="detail-label">Normalized Qty</div>
+                                    <div className="detail-value">{selectedRecord.normalized_quantity} {selectedRecord.normalized_unit}</div>
+                                </div>
+                                <div className="detail-item">
+                                    <div className="detail-label">CO2 Emission</div>
+                                    <div className="detail-value" style={{ color: 'var(--accent)', fontWeight: 'bold' }}>
+                                        {selectedRecord.co2_kg ? `${Number(selectedRecord.co2_kg).toFixed(2)} kg CO2e` : '-'}
+                                    </div>
+                                </div>
+                                <div className="detail-item">
+                                    <div className="detail-label">Amount (INR)</div>
+                                    <div className="detail-value">₹ {selectedRecord.amount_inr ? Number(selectedRecord.amount_inr).toLocaleString() : '-'}</div>
+                                </div>
+                                <div className="detail-item">
+                                    <div className="detail-label">Vendor / Reference</div>
+                                    <div className="detail-value">{selectedRecord.vendor || '-'}</div>
+                                </div>
+                                <div className="detail-item">
+                                    <div className="detail-label">Location / Site</div>
+                                    <div className="detail-value">{selectedRecord.location || '-'}</div>
+                                </div>
+                                {selectedRecord.flag_reason && (
+                                    <div className="detail-item full-width">
+                                        <div className="detail-label" style={{ color: 'var(--red)' }}>Flag Reason</div>
+                                        <div className="detail-value" style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.1)', padding: '0.5rem', borderRadius: '0.25rem' }}>
+                                            ⚠️ {selectedRecord.flag_reason}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="detail-item full-width">
+                                    <div className="detail-label">Raw Data Row (CSV Export)</div>
+                                    <pre className="raw-json-box">
+                                        {JSON.stringify(selectedRecord.raw_row, null, 2)}
+                                    </pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            {!selectedRecord.is_locked && selectedRecord.status !== 'approved' && (
+                                <button className="action-btn approve" onClick={() => { handleAction(selectedRecord.id, 'approve'); setSelectedRecord(null); }}>✓ Approve</button>
+                            )}
+                            {!selectedRecord.is_locked && selectedRecord.status !== 'rejected' && (
+                                <button className="action-btn reject" onClick={() => { handleAction(selectedRecord.id, 'reject'); setSelectedRecord(null); }}>✗ Reject</button>
+                            )}
+                            <button className="filter-btn" onClick={() => setSelectedRecord(null)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {toast && <div className={`toast ${toast.type}`}>{toast.msg}</div>}
         </div>
     )
