@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     IngestSAPView, IngestUtilityView, IngestTravelView,
     EmissionRecordViewSet, IngestionBatchViewSet, AuditLogViewSet,
-    StatsView
+    StatsView, DebugUserView
 )
 
 router = DefaultRouter()
@@ -17,4 +17,5 @@ urlpatterns = [
     path('ingest/utility/', IngestUtilityView.as_view(), name='ingest-utility'),
     path('ingest/travel/', IngestTravelView.as_view(), name='ingest-travel'),
     path('stats/', StatsView.as_view(), name='stats'),
+    path('debug-user/', DebugUserView.as_view(), name='debug-user'),
 ]
