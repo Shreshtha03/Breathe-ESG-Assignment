@@ -12,6 +12,13 @@ cd ..
 # 2. Setup Django Backend
 echo "Setting up Django backend..."
 cd backend
+
+# Activate virtualenv if it exists on Render
+if [ -d "../.venv" ]; then
+    echo "Activating Render virtual environment..."
+    source ../.venv/bin/activate
+fi
+
 pip install -r requirements.txt
 
 # Run migrations

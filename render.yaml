@@ -12,3 +12,5 @@ services:
         value: "*.onrender.com,localhost"
       - key: SECRET_KEY
         generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.9
