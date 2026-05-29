@@ -9,9 +9,11 @@ staticfiles/
 
 # Node
 node_modules/
-dist/
 dist-ssr
 *.local
+# Allow frontend/dist to be tracked for Render deployment
+!frontend/dist
+!frontend/dist/**
 
 # IDEs
 .vscode/
