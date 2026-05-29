@@ -3,7 +3,7 @@ services:
     name: breathe-esg-backend
     env: python
     region: oregon
-    buildCommand: cd backend && pip install -r requirements.txt && python manage.py migrate && python manage.py create_default_user && python manage.py collectstatic --noinput
+    buildCommand: chmod +x build.sh && ./build.sh
     startCommand: cd backend && gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DEBUG

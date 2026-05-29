@@ -1,7 +1,7 @@
 import csv
 import io
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from api.models import EmissionRecord
 
 # city_pair: distance_km
@@ -46,31 +46,41 @@ def parse_travel_csv(batch, file_content):
     
     for row in reader:
         try:
+            flag_reasons = []
+
             # 1. Transaction Date
             date_str = row.get('transaction_date', '')
             try:
                 activity_date = datetime.strptime(date_str, '%Y-%m-%d').date()
             except ValueError:
                 activity_date = datetime.now().date()
-                flag_reason = f"Invalid date: {date_str}"
-            else:
-                flag_reason = None
+                flag_reasons.append(f"Invalid date: {date_str}")
 
             expense_type = row.get('expense_type', '').upper()
             distance_km = row.get('distance_km', '')
             nights = row.get('nights', '')
             
+            # Helper to parse decimals safely
+            def parse_qty(val, name):
+                if not val:
+                    return Decimal('0')
+                try:
+                    clean = str(val).strip().replace(',', '')
+                    return Decimal(clean)
+                except (InvalidOperation, ValueError):
+                    flag_reasons.append(f"Invalid {name} value: '{val}'")
+                    return Decimal('0')
+
             # 2. Scope & Calculation Logic
             scope = 'SCOPE3'
             co2_kg = Decimal('0')
-            
             raw_qty = Decimal('0')
             raw_unit = ''
             
             if expense_type == 'AIR':
                 raw_unit = 'km'
                 if distance_km:
-                    raw_qty = Decimal(distance_km)
+                    raw_qty = parse_qty(distance_km, 'distance_km')
                 else:
                     # Estimate from city pair
                     origin = row.get('origin_city', '')
@@ -79,23 +89,23 @@ def parse_travel_csv(batch, file_content):
                     if est_dist:
                         raw_qty = Decimal(est_dist)
                     else:
-                        flag_reason = "Missing distance and city pair unknown"
+                        flag_reasons.append("Missing distance and city pair unknown")
                 
                 co2_kg = raw_qty * Decimal('0.255')
                 
                 if not row.get('origin_city') or not row.get('dest_city'):
-                    flag_reason = "Origin or Destination city missing for AIR"
+                    flag_reasons.append("Origin or Destination city missing for AIR")
             
             elif expense_type == 'HOTEL':
                 raw_unit = 'nights'
-                raw_qty = Decimal(nights if nights else '0')
+                raw_qty = parse_qty(nights, 'nights')
                 co2_kg = raw_qty * Decimal('31.2')
                 if not nights:
-                    flag_reason = "Missing nights for HOTEL"
+                    flag_reasons.append("Missing nights for HOTEL")
             
             elif expense_type == 'TAXI':
                 raw_unit = 'km'
-                raw_qty = Decimal(distance_km if distance_km else '0')
+                raw_qty = parse_qty(distance_km, 'distance_km')
                 co2_kg = raw_qty * Decimal('0.21')
             
             else:
@@ -103,6 +113,12 @@ def parse_travel_csv(batch, file_content):
                 raw_unit = 'entry'
                 raw_qty = Decimal('1')
                 co2_kg = Decimal('5.0') # Dummy placeholder
+
+            # Parse amount
+            amount_inr = parse_qty(row.get('amount'), 'amount')
+
+            # Combine flag reasons
+            flag_reason = "; ".join(flag_reasons) if flag_reasons else None
 
             # Create EmissionRecord
             record = EmissionRecord(
@@ -118,7 +134,7 @@ def parse_travel_csv(batch, file_content):
                 normalized_unit=raw_unit,
                 co2_kg=co2_kg,
                 currency=row.get('currency'),
-                amount_inr=Decimal(row.get('amount', '0')), # Needs conversion if not INR, but prototype assumes simple
+                amount_inr=amount_inr,
                 vendor=row.get('vendor'),
                 location=row.get('dest_city') if row.get('dest_city') else row.get('origin_city'),
                 raw_row=row,
@@ -127,9 +143,10 @@ def parse_travel_csv(batch, file_content):
             )
             
             # Check high CO2 flag
-            if record.co2_kg > 10000:
+            if record.co2_kg and record.co2_kg > 10000:
                 record.status = 'flagged'
-                record.flag_reason = f"High CO2 contribution: {record.co2_kg} kg"
+                high_co2_reason = f"High CO2 contribution: {record.co2_kg} kg"
+                record.flag_reason = f"{record.flag_reason}; {high_co2_reason}" if record.flag_reason else high_co2_reason
 
             records.append(record)
         except Exception as e:

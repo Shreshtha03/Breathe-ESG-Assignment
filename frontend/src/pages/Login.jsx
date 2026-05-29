@@ -20,7 +20,7 @@ export default function Login({ onLogin }) {
                 params: { page_size: 1 }
             })
             if (response.status === 200) {
-                onLogin(username)
+                onLogin(username, password)
             }
         } catch (err) {
             setError('Invalid credentials or server unreachable')

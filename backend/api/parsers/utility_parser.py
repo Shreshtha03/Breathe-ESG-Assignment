@@ -1,7 +1,7 @@
 import csv
 import io
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from api.models import EmissionRecord
 
 def parse_utility_csv(batch, file_content):
@@ -19,6 +19,8 @@ def parse_utility_csv(batch, file_content):
     
     for row in reader:
         try:
+            flag_reasons = []
+
             # 1. Billing Period (Start/End)
             start_str = row.get('billing_period_start', '')
             end_str = row.get('billing_period_end', '')
@@ -31,21 +33,34 @@ def parse_utility_csv(batch, file_content):
                     activity_date = datetime.strptime(end_str, '%d/%m/%Y').date()
                 except ValueError:
                     activity_date = datetime.now().date()
-                    flag_reason = f"Invalid date format: {end_str}"
-                else:
-                    flag_reason = None
-            else:
-                flag_reason = None
+                    flag_reasons.append(f"Invalid date format: {end_str}")
+            
+            # Helper to parse decimals safely
+            def parse_qty(val, name):
+                if not val:
+                    return Decimal('0')
+                try:
+                    clean = str(val).strip().replace(',', '')
+                    return Decimal(clean)
+                except (InvalidOperation, ValueError):
+                    flag_reasons.append(f"Invalid {name} value: '{val}'")
+                    return Decimal('0')
 
             # 2. Consumption
-            consumption = Decimal(row.get('consumption_kwh', '0'))
+            consumption = parse_qty(row.get('consumption_kwh'), 'consumption_kwh')
             
             # Auto-flagging rules
             if consumption > 50000:
-                flag_reason = f"Suspiciously high consumption: {consumption} kWh"
+                flag_reasons.append(f"Suspiciously high consumption: {consumption} kWh")
             elif consumption < 0:
-                flag_reason = "Negative consumption"
+                flag_reasons.append("Negative consumption")
             
+            # Parse amount
+            amount_inr = parse_qty(row.get('amount_inr'), 'amount_inr')
+
+            # Combine flag reasons
+            flag_reason = "; ".join(flag_reasons) if flag_reasons else None
+
             # Create EmissionRecord
             record = EmissionRecord(
                 batch=batch,
@@ -59,7 +74,7 @@ def parse_utility_csv(batch, file_content):
                 normalized_quantity=consumption,
                 normalized_unit='kWh',
                 co2_kg=consumption * Decimal('0.82'), # Indian Grid Factor
-                amount_inr=Decimal(row.get('amount_inr', '0')),
+                amount_inr=amount_inr,
                 vendor=row.get('meter_id'), # Use meter_id as reference
                 location=row.get('site_name'),
                 raw_row=row,
@@ -68,9 +83,10 @@ def parse_utility_csv(batch, file_content):
             )
             
             # Check high CO2 flag
-            if record.co2_kg > 10000:
+            if record.co2_kg and record.co2_kg > 10000:
                 record.status = 'flagged'
-                record.flag_reason = f"High CO2 contribution: {record.co2_kg} kg"
+                high_co2_reason = f"High CO2 contribution: {record.co2_kg} kg"
+                record.flag_reason = f"{record.flag_reason}; {high_co2_reason}" if record.flag_reason else high_co2_reason
 
             records.append(record)
         except Exception as e:

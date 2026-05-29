@@ -2,12 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
-const user = sessionStorage.getItem('breathe_user')
-const pass = sessionStorage.getItem('breathe_pass') || 'analyst123'
 
 const api = axios.create({
     baseURL: API_BASE,
-    auth: { username: user, password: pass }
+})
+
+api.interceptors.request.use(config => {
+    const user = sessionStorage.getItem('breathe_user')
+    const pass = sessionStorage.getItem('breathe_pass') || 'analyst123'
+    if (user) {
+        config.auth = { username: user, password: pass }
+    }
+    return config
 })
 
 const STATUSES = ['all', 'pending', 'flagged', 'approved', 'rejected']
@@ -253,10 +259,7 @@ function UploadCard({ source, showToast }) {
         formData.append('file', file)
         formData.append('client_slug', 'default-client')
         try {
-            const username = sessionStorage.getItem('breathe_user')
-            const r = await axios.post(`${import.meta.env.VITE_API_URL || ''}${source.endpoint}`, formData, {
-                auth: { username, password: 'analyst123' }
-            })
+            const r = await api.post(source.endpoint, formData)
             showToast(`✓ Ingested ${r.data.data?.rows_ingested || '?'} records from ${source.label}`)
             setFile(null)
         } catch (e) {
@@ -290,10 +293,7 @@ function BatchesTab() {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        const username = sessionStorage.getItem('breathe_user')
-        axios.get(`${import.meta.env.VITE_API_URL || ''}/api/batches/`, {
-            auth: { username, password: 'analyst123' }
-        }).then(r => {
+        api.get('/api/batches/').then(r => {
             setBatches(r.data.results || r.data)
             setLoading(false)
         }).catch(() => setLoading(false))

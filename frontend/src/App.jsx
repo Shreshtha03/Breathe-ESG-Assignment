@@ -9,13 +9,15 @@ function App() {
         return sessionStorage.getItem('breathe_user') || null
     })
 
-    const handleLogin = (username) => {
+    const handleLogin = (username, password) => {
         sessionStorage.setItem('breathe_user', username)
+        sessionStorage.setItem('breathe_pass', password)
         setUser(username)
     }
 
     const handleLogout = () => {
         sessionStorage.removeItem('breathe_user')
+        sessionStorage.removeItem('breathe_pass')
         setUser(null)
     }
 
